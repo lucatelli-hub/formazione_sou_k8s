@@ -1,26 +1,4 @@
 ---
-- name: Check Minikube status
-  command: minikube status
-  register: minikube_status
-  changed_when: false
-  failed_when: false
-
-- name: Start Minikube if not running
-  command: minikube start --driver=docker
-  when: "'Running' not in minikube_status.stdout"
-
-- name: Fix Minikube kubeconfig context
-  command: minikube update-context
-
-- name: Get Minikube IP
-  command: minikube ip
-  register: minikube_ip
-  changed_when: false
-
-- name: Show Minikube IP
-  debug:
-    var: minikube_ip.stdout
-
 - name: Build custom Jenkins image
   docker_image:
     name: custom-jenkins-docker
@@ -55,6 +33,11 @@
 - name: Wait for Jenkins startup
   pause:
     seconds: 15
+
+- name: Get Minikube IP
+  command: minikube ip
+  register: minikube_ip
+  changed_when: false
 
 - name: Replace localhost API server with Minikube IP
   command: >

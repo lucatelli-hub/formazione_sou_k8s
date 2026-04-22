@@ -1,0 +1,27 @@
+---
+- name: Check Minikube status
+  command: minikube status
+  register: minikube_status
+  changed_when: false
+  failed_when: false
+
+- name: Start Minikube if not running
+  command: minikube start --driver=docker
+  when: "'Running' not in minikube_status.stdout"
+
+- name: Fix Minikube kubeconfig context
+  command: minikube update-context
+
+- name: Get Minikube IP
+  command: minikube ip
+  register: minikube_ip
+  changed_when: false
+
+- name: Show Minikube IP
+  debug:
+    var: minikube_ip.stdout
+
+- name: Create namespace formazione-sou
+  command: kubectl create namespace formazione-sou
+  failed_when: false
+  changed_when: false
