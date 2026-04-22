@@ -17,15 +17,26 @@ pipeline {
             steps {
                 script {
 
-                    if (env.TAG_NAME) {
-                        env.IMAGE_TAG = env.TAG_NAME
+                    def gitTag = sh(
+                        script: "git describe --tags --exact-match HEAD || true",
+                        returnStdout: true
+                    ).trim()
+
+                    def gitBranch = env.GIT_BRANCH ?: ""
+
+                    echo "Detected GIT_BRANCH: ${gitBranch}"
+                    echo "Detected Git Tag: ${gitTag}"
+
+                    if (gitTag) {
+                        env.IMAGE_TAG = gitTag
                     }
 
-                    else if (env.BRANCH_NAME == "main" || env.BRANCH_NAME == "master") {
+                    else if (gitBranch.contains("main") || gitBranch.contains("master")) {
                         env.IMAGE_TAG = "latest"
                     }
 
-                    else if (env.BRANCH_NAME == "develop") {
+                    else if (gitBranch.contains("develop")) {
+
                         def sha = sh(
                             script: "git rev-parse --short HEAD",
                             returnStdout: true
@@ -38,7 +49,7 @@ pipeline {
                         env.IMAGE_TAG = "latest"
                     }
 
-                    echo "Using tag: ${env.IMAGE_TAG}"
+                    echo "Final Docker Tag: ${env.IMAGE_TAG}"
                 }
             }
         }
@@ -47,7 +58,7 @@ pipeline {
             steps {
                 script {
                     docker.build(
-                        "${IMAGE_NAME}:${IMAGE_TAG}",
+                        "${IMAGE_NAME}:${env.IMAGE_TAG}",
                         "./app"
                     )
                 }
@@ -59,11 +70,27 @@ pipeline {
                 script {
                     docker.withRegistry('', 'dockerhub-creds') {
                         docker.image(
-                            "${IMAGE_NAME}:${IMAGE_TAG}"
+                            "${IMAGE_NAME}:${env.IMAGE_TAG}"
                         ).push()
                     }
                 }
             }
+        }
+
+        stage('Cleanup') {
+            steps {
+                sh "docker rmi ${IMAGE_NAME}:${env.IMAGE_TAG} || true"
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Build completed successfully"
+        }
+
+        failure {
+            echo "Build failed"
         }
     }
 }
