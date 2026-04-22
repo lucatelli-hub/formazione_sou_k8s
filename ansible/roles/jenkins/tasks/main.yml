@@ -1,9 +1,10 @@
 - name: Start Jenkins container
   docker_container:
     name: jenkins
-    image: jenkins/jenkins:lts-jdk11
+    image: custom-jenkins-docker
     state: started
     restart_policy: always
+    user: root
     ports:
       - "8080:8080"
       - "50000:50000"
