@@ -27,18 +27,35 @@
     volumes:
       - jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
-      - /Users/lucatelli/.kube:/root/.kube
+
+      # OLD -> DA TOGLIERE
+      # - /Users/lucatelli/.kube:/root/.kube
+
+      # NEW -> mount separato solo lettura config host
+      - /Users/lucatelli/.kube:/tmp/host-kube
+
+      # minikube certs
       - /Users/lucatelli/.minikube:/root/.minikube
 
 - name: Wait for Jenkins startup
   pause:
     seconds: 15
 
+# NEW
+- name: Create .kube folder inside Jenkins
+  command: docker exec jenkins mkdir -p /root/.kube
+
+# NEW
+- name: Copy host kubeconfig inside Jenkins
+  command: docker exec jenkins cp /tmp/host-kube/config /root/.kube/config
+
 - name: Get Minikube IP
   command: minikube ip
   register: minikube_ip
   changed_when: false
 
+# QUESTO RESTA
+# modifica solo il config interno di Jenkins
 - name: Replace localhost API server with Minikube IP
   command: >
     docker exec jenkins
@@ -46,6 +63,8 @@
     's|https://127.0.0.1:[0-9]*|https://{{ minikube_ip.stdout }}:8443|g'
     /root/.kube/config
 
+# QUESTO RESTA
+# modifica solo il config interno di Jenkins
 - name: Fix Minikube certificate paths
   command: >
     docker exec jenkins

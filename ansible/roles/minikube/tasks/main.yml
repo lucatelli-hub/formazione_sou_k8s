@@ -9,8 +9,18 @@
   command: minikube start --driver=docker
   when: "'Running' not in minikube_status.stdout"
 
+  # OLD -> da rimuovere
+  # questo ti riscrive il kubeconfig host e può creare path /root/.minikube
+  #
+  # - name: Fix Minikube kubeconfig context
+  #   command: minikube update-context
+
+# NEW -> aggiorna context senza sporcare il tuo host config
 - name: Fix Minikube kubeconfig context
   command: minikube update-context
+  environment:
+    CHANGE_MINIKUBE_NONE_USER: true
+  changed_when: false
 
 - name: Get Minikube IP
   command: minikube ip
