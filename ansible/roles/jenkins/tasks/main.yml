@@ -1,3 +1,39 @@
+---
+- name: Check Minikube status
+  command: minikube status
+  register: minikube_status
+  changed_when: false
+  failed_when: false
+
+- name: Start Minikube if not running
+  command: minikube start --driver=docker
+  when: "'Running' not in minikube_status.stdout"
+
+- name: Fix Minikube kubeconfig context
+  command: minikube update-context
+
+- name: Get Minikube IP
+  command: minikube ip
+  register: minikube_ip
+  changed_when: false
+
+- name: Show Minikube IP
+  debug:
+    var: minikube_ip.stdout
+
+- name: Build custom Jenkins image
+  docker_image:
+    name: custom-jenkins-docker
+    source: build
+    build:
+      path: ../jenkins-docker
+
+- name: Remove old Jenkins container if exists
+  docker_container:
+    name: jenkins
+    state: absent
+    force_kill: true
+
 - name: Start Jenkins container
   docker_container:
     name: jenkins
@@ -8,6 +44,40 @@
     ports:
       - "8080:8080"
       - "50000:50000"
+    env:
+      KUBECONFIG: /root/.kube/config
     volumes:
       - jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
+      - /Users/lucatelli/.kube:/root/.kube
+      - /Users/lucatelli/.minikube:/root/.minikube
+
+- name: Wait for Jenkins startup
+  pause:
+    seconds: 15
+
+- name: Replace localhost API server with Minikube IP
+  command: >
+    docker exec jenkins
+    sed -i
+    's|https://127.0.0.1:[0-9]*|https://{{ minikube_ip.stdout }}:8443|g'
+    /root/.kube/config
+
+- name: Fix Minikube certificate paths
+  command: >
+    docker exec jenkins
+    sed -i
+    's|/Users/lucatelli/.minikube|/root/.minikube|g'
+    /root/.kube/config
+
+- name: Set minikube context
+  command: docker exec jenkins kubectl config use-context minikube
+
+- name: Verify Kubernetes connection
+  command: docker exec jenkins kubectl get nodes
+  register: kube_check
+  changed_when: false
+
+- name: Show Kubernetes connection result
+  debug:
+    var: kube_check.stdout
