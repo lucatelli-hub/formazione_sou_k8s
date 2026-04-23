@@ -1,295 +1,178 @@
-# formazione_sou_k8s
+formazione_sou_k8s
 
-## Scopo del laboratorio
+Progetto DevOps end-to-end che automatizza il provisioning di un ambiente locale Kubernetes con Jenkins, build Docker, deploy Helm e validazione tramite API Kubernetes.
 
-Questo laboratorio ha l'obiettivo di simulare una pipeline DevOps end-to-end partendo da una semplice applicazione Flask fino al deploy su Kubernetes locale.
+Architettura
+Ansible
+ ├── Role Minikube
+ │    ├── avvia cluster Kubernetes locale
+ │    ├── crea namespace formazione-sou
+ │    └── installa ingress nginx
+ │
+ └── Role Jenkins
+      ├── build custom Jenkins image
+      ├── avvia container Jenkins
+      ├── configura kubectl/helm
+      └── collega Jenkins al cluster Minikube
 
-Gli obiettivi principali sono:
 
-* Comprendere le basi dei container tramite Docker
-* Automatizzare installazioni tramite Ansible
-* Installare e configurare Jenkins come CI tool
-* Creare una pipeline dichiarativa Jenkins per build e push di immagini Docker
-* Utilizzare Kubernetes in locale tramite Minikube
-* Creare un Helm Chart custom per il deploy applicativo
-* Effettuare controlli sulle best practices di deployment Kubernetes
+Jenkins Pipeline
+ ├── build immagine Flask
+ ├── push DockerHub
+ └── deploy Helm
 
-Il laboratorio riproduce un flusso tipico:
 
-GitHub → Jenkins → Docker → DockerHub → Kubernetes → Helm
+Kubernetes
+ ├── Deployment
+ ├── Service
+ ├── Ingress
+ ├── ServiceAccount
+ ├── ClusterRoleBinding
+ └── API validation script
+Track completate
+Track 1 — Ansible + Jenkins + Minikube
 
----
+Automazione completa tramite Ansible:
 
-## Requisiti
+Role minikube
+verifica stato minikube
+avvia cluster se spento
+aggiorna kube context
+crea namespace formazione-sou
+abilita ingress nginx
+Role jenkins
+build immagine custom Jenkins
+avvio container Jenkins
+installazione:
+docker cli
+kubectl
+helm
+configurazione kubeconfig per comunicazione con minikube
 
-Ambiente utilizzato:
+Avvio:
 
-* macOS (Apple Silicon M1/M2/M3)
-* Docker Desktop
-* Git
-* Python 3
-* Homebrew
+ansible-playbook -i inventories/hosts deploy.yml
+Track 2 — Jenkins pipeline Docker build
 
-Tool richiesti:
+Applicazione Flask semplice:
 
-### Docker
+return "hello world"
 
-Installazione tramite Docker Desktop:
+Pipeline Jenkins dichiarativa:
 
-[https://www.docker.com/products/docker-desktop/](https://www.docker.com/products/docker-desktop/)
+clone repository
+build Docker image
+push DockerHub
 
-Verifica:
+Tag strategy:
 
-```bash
-docker --version
-docker ps
-```
+latest → branch main/master
+develop-<commit_sha> → branch develop
+git tag → stesso tag git
+Track 3 — Helm Chart
 
----
+Chart custom presente in:
 
-### Ansible
+charts/flask-chart
 
-```bash
-brew install ansible
-```
+Deploya:
 
-Verifica:
+Deployment
+Service
+Ingress
 
-```bash
-ansible --version
-```
+Configurazioni principali in:
 
----
+charts/flask-chart/values.yaml
 
-### Kubectl
+Sono stati aggiunti:
 
-```bash
-brew install kubectl
-```
+replicas
+readinessProbe
+livenessProbe
+requests
+limits
+Track 4 — Helm Deploy
 
-Verifica:
+Deploy applicazione:
 
-```bash
-kubectl version --client
-```
-
----
-
-### Minikube
-
-Utilizzato al posto di Kind per semplicità nella gestione locale del cluster Kubernetes.
-
-```bash
-brew install minikube
-```
-
-Avvio cluster:
-
-```bash
-minikube start --driver=docker
-```
-
-Verifica:
-
-```bash
-kubectl get nodes
-kubectl get pods -A
-```
-
----
-
-### Helm
-
-```bash
-brew install helm
-```
-
-Verifica:
-
-```bash
-helm version
-```
-
----
-
-## Struttura del progetto
-
-```bash
-formazione_sou_k8s/
-│
-├── app/
-│   ├── app.py
-│   ├── requirements.txt
-│   └── Dockerfile
-│
-├── ansible/
-│   ├── inventory
-│   ├── deploy.yml
-│   └── roles/
-│
-├── charts/
-│   └── flask-chart/
-│
-├── Jenkinsfile
-│
-└── README.md
-```
-
----
-
-## Track 1 - Setup infrastruttura locale
-
-### Applicazione Flask
-
-Creazione di una semplice applicazione Flask che espone:
-
-```text
-hello world
-```
-
-Test locale:
-
-```bash
-docker build -t flask-test ./app
-docker run -p 5000:5000 flask-test
-```
-
----
-
-### Installazione Jenkins tramite Ansible
-
-Ansible viene utilizzato per automatizzare il deploy di Jenkins tramite container Docker.
-
-Responsabilità:
-
-* installazione dipendenze
-* avvio container Jenkins
-* gestione persistenza volume
-* esposizione porte
-
-Jenkins viene esposto su:
-
-```text
-http://localhost:8080
-```
-
----
-
-## Track 2 - CI Pipeline Jenkins
-
-Pipeline dichiarativa Jenkins:
-
-* checkout repository GitHub
-* build immagine Docker
-* push su DockerHub
-
-Logica tagging:
-
-* branch `main/master` → tag `latest`
-* branch `develop` → tag `develop-<git-sha>`
-* git tag → stesso nome del tag Git
-
-Pipeline name:
-
-```text
-flask-app-example-build
-```
-
-Output finale:
-
-Immagine pubblicata su DockerHub.
-
----
-
-## Track 3 - Helm Chart
-
-Creazione Helm chart custom:
-
-```bash
-helm create flask-chart
-```
-
-Successivamente modificato per:
-
-* usare immagine Docker custom
-* supportare tag dinamici
-* configurare correttamente containerPort
-* configurare readinessProbe
-* configurare livenessProbe
-
-Deploy:
-
-```bash
-helm install flask-release ./charts/flask-chart -n formazione-sou
-```
-
----
-
-## Namespace Kubernetes
-
-Il namespace richiesto dal lab era:
-
-```text
-formazione_sou
-```
-
-Tuttavia Kubernetes non accetta underscore nei namespace.
-
-Namespace utilizzato:
-
-```text
-formazione-sou
-```
-
-Creazione:
-
-```bash
-kubectl create namespace formazione-sou
-```
-
----
-
-## Track 4 - CD Pipeline
-
-Pipeline Jenkins dedicata al deploy:
-
-* recupera Helm chart da Git
-* esegue deploy su Kubernetes
-
-Comando principale:
-
-```bash
 helm upgrade --install flask-release ./charts/flask-chart -n formazione-sou
-```
 
----
+Verifica:
 
-## Track 5 - Deployment Best Practices
+kubectl get pods -n formazione-sou
+kubectl get svc -n formazione-sou
+kubectl get ingress -n formazione-sou
+Track 5 — Kubernetes API validation
 
-Script Bash/Python per validare il deployment Kubernetes.
+Creato:
 
-Controlli richiesti:
+ServiceAccount
+ClusterRoleBinding
 
-* readiness probe
-* liveness probe
-* resource requests
-* resource limits
+Permette accesso in sola lettura al cluster.
 
-Lo script deve fallire se questi parametri non sono presenti.
+File:
 
----
+k8s-rbac/
+├── service-account.yaml
+└── cluster-role-binding.yaml
 
-## Bonus Track
+Script di validazione:
 
-Installazione Ingress NGINX:
+scripts/check-deployment.sh
 
-* deploy Ingress Controller
-* esposizione applicazione via hostname locale
+Lo script:
 
-Endpoint finale:
+autentica tramite ServiceAccount
+chiama API Kubernetes
+verifica presenza di:
 
-```text
-http://formazionesou.local
-```
+ readinessProbe
+ livenessProbe
+ requests
+ limits
 
----
+Esempio:
+
+./check-deployment.sh
+
+Output:
+
+Deployment configuration valid
+Track 6 — Bonus Ingress
+
+Installazione ingress nginx:
+
+minikube addons enable ingress
+
+Host configurato:
+
+formazionesou.local
+
+Su macOS con driver Docker è necessario usare:
+
+minikube service ingress-nginx-controller -n ingress-nginx --url
+
+Verifica finale:
+
+curl -H "Host: formazionesou.local" http://<generated-url>
+
+Output:
+
+hello world
+
+Stack utilizzato
+Ansible
+Jenkins
+Docker
+Minikube
+Kubernetes
+Helm
+NGINX Ingress Controller
+Flask
+Risultato finale
+
+Pipeline completa:
+
+Code → Jenkins → Docker Image → Helm → Kubernetes → API Validation → Ingress
